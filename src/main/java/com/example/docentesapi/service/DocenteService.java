@@ -3,6 +3,7 @@ package com.example.docentesapi.service;
 import com.example.docentesapi.entity.Docente;
 import com.example.docentesapi.exception.DocenteNotFoundException;
 import com.example.docentesapi.exception.EmailAlreadyExistsException;
+import com.example.docentesapi.exception.InvalidDateException;
 import com.example.docentesapi.repository.DocenteRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -10,6 +11,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.Period;
 import java.util.List;
 
 @Service
@@ -48,7 +51,10 @@ public class DocenteService {
         if (docenteRepository.existsByEmailDocente(docente.getEmailDocente())) {
             throw new EmailAlreadyExistsException("Ya existe un docente con el email: " + docente.getEmailDocente());
         }
+        validarFechaNacimiento(docente.getFecNacimiento());
 
+        // Validar tiempo de servicio
+        validarTiempoServicio(docente.getTiempoServicio(), docente.getFecNacimiento());
         return docenteRepository.save(docente);
     }
 
@@ -59,7 +65,11 @@ public class DocenteService {
         if (docenteRepository.existsByEmailDocenteAndIdDocenteNot(docenteActualizado.getEmailDocente(), id)) {
             throw new EmailAlreadyExistsException("Ya existe otro docente con el email: " + docenteActualizado.getEmailDocente());
         }
+        // Validar fecha de nacimiento
+        validarFechaNacimiento(docenteActualizado.getFecNacimiento());
 
+        // Validar tiempo de servicio
+        validarTiempoServicio(docenteActualizado.getTiempoServicio(), docenteActualizado.getFecNacimiento());
         docenteExistente.setNomDocente(docenteActualizado.getNomDocente());
         docenteExistente.setDirDocente(docenteActualizado.getDirDocente());
         docenteExistente.setCiuDocente(docenteActualizado.getCiuDocente());
@@ -121,5 +131,28 @@ public class DocenteService {
         return edadPromedio != null ? Math.round(edadPromedio * 100.0) / 100.0 : 0.0;
     }
 
+    private void validarFechaNacimiento(LocalDate fechaNacimiento) {
 
+        LocalDate fechaActual = LocalDate.now();
+        int edad = Period.between(fechaNacimiento, fechaActual).getYears();
+        if (edad > 100) {
+            throw new InvalidDateException("fecNacimiento", fechaNacimiento,
+                    "La fecha de nacimiento indica una edad no válida (mayor a 100 años)");
+        }
+    }
+
+    private void validarTiempoServicio(Integer tiempoServicio, LocalDate fechaNacimiento) {
+
+        if (fechaNacimiento != null) {
+            int edad = Period.between(fechaNacimiento, LocalDate.now()).getYears();
+            int edadMinimaParaTrabajo =30;
+            int maximoTiempoServicioPosible = edad - edadMinimaParaTrabajo;
+
+            if (tiempoServicio > maximoTiempoServicioPosible) {
+                throw new InvalidDateException("tiempoServicio", tiempoServicio,
+                        String.format("El tiempo de servicio (%d años) no es coherente con la edad del docente (%d años)",
+                                tiempoServicio, edad));
+            }
+        }
+    }
 }
